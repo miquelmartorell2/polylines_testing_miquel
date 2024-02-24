@@ -25,7 +25,6 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
   bool isRouteInProgress = false;
   double totalDistance = 0;
   bool isSavingRoute = false; // Variable para controlar el estado del botón
-  
 
   @override
   void initState() {
@@ -175,7 +174,7 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
             SizedBox(width: 16.0),
             Expanded(
               child: ElevatedButton(
-                onPressed: isSavingRoute ? null : _showSaveRouteDialog,
+                onPressed: isSavingRoute || isRouteInProgress ? null : _showSaveRouteDialog,
                 style: ElevatedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8.0),

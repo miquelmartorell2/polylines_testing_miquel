@@ -20,6 +20,8 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
   Map<MarkerId, LatLng> markerPositions = {};
   List<LatLng> rutaPuntos = [];
   List<LatLng> paintRoute = [];
+  bool isSavingRoute = false;
+  double totalDistance = 0;
 
   @override
   void initState() {
@@ -86,7 +88,7 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
         child: Container(
           height: 60.0,
           child: ElevatedButton(
-            onPressed: _showSaveRouteDialog,
+            onPressed: isSavingRoute ? null : _showSaveRouteDialog,
             style: ElevatedButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8.0),
@@ -164,7 +166,8 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
 
   Future<void> _fetchAndSetPolyline(List<LatLng> points) async {
     List<LatLng> allRoutePoints = [];
-
+    isSavingRoute = true;
+    double segmentDistance = 0;
     for (int i = 0; i < points.length - 1; i++) {
       final directionsResponse = await http.get(
         Uri.parse(
@@ -176,16 +179,23 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
         final decodedResponse = json.decode(directionsResponse.body);
         final routes = decodedResponse['routes'];
         if (routes != null && routes.isNotEmpty) {
-          final points = _decodePolyline(routes[0]['overview_polyline']['points']);
-          List<LatLng> routeCoords = points.map((point) => LatLng(point[0], point[1])).toList();
-          allRoutePoints.addAll(routeCoords);
+          final legs = routes[0]['legs'];
+          if (legs != null && legs.isNotEmpty) {
+            final int distance = legs[0]['distance']['value'];
+            segmentDistance = distance.toDouble();
+            print("Distance: $distance");
+            print("Segment Distance: $segmentDistance");
+          }
         }
       } else {
         throw Exception('Failed to load directions');
       }
     }
-
+    print("Segment Distance2: $segmentDistance");
+    totalDistance += segmentDistance;
+    print("Total Distance: $totalDistance");
     setState(() {
+      isSavingRoute = false;
       paintRoute.clear();
       paintRoute.addAll(allRoutePoints);
     });
@@ -269,7 +279,7 @@ showDialog(
                 onChanged: (value) {
                   setState(() {
                     isKilometrosValidos = value.isNotEmpty && double.tryParse(value) != null;
-                    tempRuta.distancia = double.tryParse(value);
+                    tempRuta.distancia = totalDistance;
                   });
                 },
               ),
