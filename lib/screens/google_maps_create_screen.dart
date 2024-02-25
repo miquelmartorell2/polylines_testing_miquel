@@ -101,37 +101,71 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          GoogleMap(
-            onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(
-              target: LatLng(39.725024, 2.905675),
-              zoom: 14.0,
-            ),
-            markers: _buildMarkers(),
-            onTap: _addMarker,
-            polylines: _buildPolylines(),
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-          ),
-          Positioned(
-            bottom: 16.0,
-            left: 16.0,
-            child: FloatingActionButton(
-              onPressed: _toggleFollowingUser,
-              child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
-            ),
-          ),
-        ],
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: Text('Creació Manual de Rutes'),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back),
+        onPressed: () {
+          Navigator.of(context).pop();
+        },
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: _buildBottomNavigationBar(),
-    );
-  }
+    ),
+    body: Stack(
+      children: [
+        GoogleMap(
+          onMapCreated: _onMapCreated,
+          initialCameraPosition: CameraPosition(
+            target: LatLng(39.725024, 2.905675),
+            zoom: 14.0,
+          ),
+          markers: _buildMarkers(),
+          onTap: _addMarker,
+          polylines: _buildPolylines(),
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+        ),
+        Positioned(
+          bottom: 70.0, // Ajusta la posición vertical del botón de GPS
+          left: 16.0,
+          child: FloatingActionButton(
+            onPressed: _toggleFollowingUser,
+            child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
+          ),
+        ),
+        Positioned(
+  bottom: 16.0,
+  left: 20.0, // Ajusta la posición horizontal del botón "Guardar Ruta"
+  child: SizedBox(
+    width: 240.0, // Establece el ancho del botón
+    child: ElevatedButton(
+      onPressed: isSavingRoute ? null : _showSaveRouteDialog,
+      style: ElevatedButton.styleFrom(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8.0),
+        ),
+      ),
+      child: Text(
+        'Guardar Ruta',
+        style: TextStyle(
+          fontSize: 18.0,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  ),
+),
+      ],
+    ),
+    //floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    //bottomNavigationBar: _buildBottomNavigationBar(),
+  );
+}
+
+
+
 
   Set<Marker> _buildMarkers() {
     return Set<Marker>.of(markerPositions.keys.map((markerId) {

@@ -35,10 +35,11 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
   }
 
   @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
-  }
+void dispose() {
+  timer?.cancel();
+  locationSubscription?.cancel();
+  super.dispose();
+}
 
   void initPlatformState() async {
     try {
@@ -67,6 +68,8 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
       if (shouldCenterOnUser && isFollowingUser) {
         _updateCameraToCurrentLocation();
       }
+
+    
     } catch (e) {
       print(e);
     }
@@ -80,85 +83,85 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          GoogleMap(
-            onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(
-              target: LatLng(currentLocation?.latitude ?? 39.725024, currentLocation?.longitude ?? 2.905675),
-              zoom: 14.0,
-            ),
-            markers: Set<Marker>.of(markers.values),
-            polylines: {
-              if (rutaPuntos.isNotEmpty)
-                Polyline(
-                  polylineId: PolylineId('ruta'),
-                  color: Colors.blue,
-                  points: paintRoute,
-                ),
-            },
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-          ),
-          Positioned(
-            bottom: 16.0,
-            left: 16.0,
-            child: FloatingActionButton(
-              onPressed: _toggleFollowingUser,
-              child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
-            ),
-          ),
-        ],
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: Text('Creación Automática de Rutas'),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back),
+        onPressed: () {
+          Navigator.of(context).pop();
+        },
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _toggleRouteProgress,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                ),
-                child: Text(
-                  isRouteInProgress ? 'Pausar Ruta' : 'Iniciar Ruta',
-                  style: TextStyle(
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: 16.0),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: isSavingRoute || isRouteInProgress ? null : _showSaveRouteDialog,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                ),
-                child: Text(
-                  'Guardar Ruta',
-                  style: TextStyle(
-                    fontSize: 18.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
+    ),
+    body: Stack(
+      children: [
+        GoogleMap(
+          onMapCreated: _onMapCreated,
+          initialCameraPosition: CameraPosition(
+            target: LatLng(currentLocation?.latitude ?? 39.725024, currentLocation?.longitude ?? 2.905675),
+            zoom: 14.0,
+          ),
+          markers: Set<Marker>.of(markers.values),
+          polylines: _buildPolylines(),
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
         ),
-      ),
-    );
-  }
+        Positioned(
+          bottom: 16.0,
+          left: 16.0,
+          child: ElevatedButton(
+            onPressed: _toggleRouteProgress,
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.0),
+              ),
+            ),
+            child: Text(
+              isRouteInProgress ? 'Pausar Ruta' : 'Iniciar Ruta',
+              style: TextStyle(
+                fontSize: 18.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 82.0, // Ajusta la posición vertical del botón GPS
+          left: 16.0,
+          child: FloatingActionButton(
+            onPressed: _toggleFollowingUser,
+            child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
+          ),
+        ),
+        Positioned(
+          bottom: 16.0,
+          right: 70.0, // Ajusta la posición horizontal del botón "Guardar Ruta"
+          child: ElevatedButton(
+            onPressed: isSavingRoute || isRouteInProgress ? null : _showSaveRouteDialog,
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.0),
+              ),
+            ),
+            child: Text(
+              'Guardar Ruta',
+              style: TextStyle(
+                fontSize: 18.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+
+
+
 
   void _onMapCreated(GoogleMapController controller) {
     setState(() {
@@ -177,7 +180,16 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
 
   void _toggleRouteProgress() {
     setState(() {
+      print("hola");
+      print(rutaPuntos.isEmpty);
+      print(currentLocation != null);
+      print(isRouteInProgress);
+      
       isRouteInProgress = !isRouteInProgress;
+      if (rutaPuntos.isEmpty && currentLocation != null && isRouteInProgress){
+        rutaPuntos.add(LatLng(currentLocation!.latitude!, currentLocation!.longitude!));
+        _fetchAndSetPolyline(rutaPuntos);
+      }
       if (isRouteInProgress) {
         timer = Timer.periodic(Duration(seconds: 15), (timer) {
           _saveCurrentPosition();
@@ -188,28 +200,42 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
     });
   }
 
+  Set<Polyline> _buildPolylines() {
+    return {
+      if (rutaPuntos.isNotEmpty)
+        Polyline(
+          polylineId: PolylineId('ruta'),
+          color: Colors.blue,
+          points: paintRoute,
+        ),
+    };
+  }
+
   void _saveCurrentPosition() async {
-    if (!isRouteInProgress) return;
+    if (!isRouteInProgress || !mounted) return;
     try {
       currentLocation = await location.getLocation();
       setState(() {
         rutaPuntos.add(
           LatLng(currentLocation!.latitude!, currentLocation!.longitude!),
         );
-        _fetchAndSetPolyline(rutaPuntos);
+        print(rutaPuntos);
       });
+      _fetchAndSetPolyline(rutaPuntos);
     } catch (e) {
       print("Error saving location: $e");
     }
   }
 
-  Future<void> _fetchAndSetPolyline(List<LatLng> points) async {
+    Future<void> _fetchAndSetPolyline(List<LatLng> points) async {
+      if(!mounted) return;
     List<LatLng> allRoutePoints = [];
+    double segmentDistance = 0;
     isSavingRoute = true;
     for (int i = 0; i < points.length - 1; i++) {
       final directionsResponse = await http.get(
         Uri.parse(
-          'https://maps.googleapis.com/maps/api/directions/json?origin=${points[i].latitude},${points[i].longitude}&destination=${points[i + 1].latitude},${points[i + 1].longitude}&mode=walking&units=metric&key=YOUR_API_KEY',
+          'https://maps.googleapis.com/maps/api/directions/json?origin=${points[i].latitude},${points[i].longitude}&destination=${points[i + 1].latitude},${points[i + 1].longitude}&mode=walking&units=metric&key=AIzaSyCUDmn8tybGJqitGdBTpS6R4FN7V56JxCE',
         ),
       );
 
@@ -226,12 +252,22 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
         throw Exception('Failed to load directions');
       }
     }
-
+    
+    
     setState(() {
       isSavingRoute = false;
+      markers['start'] = Marker(
+        markerId: MarkerId('start'),
+        position: rutaPuntos.first,
+      );
+      markers['end'] = Marker(
+        markerId: MarkerId('end'),
+        position: rutaPuntos.last,
+      );
       paintRoute.clear();
       paintRoute.addAll(allRoutePoints);
     });
+    
   }
 
   List<List<double>> _decodePolyline(String encoded) {
@@ -266,6 +302,7 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
   }
 
   void _showSaveRouteDialog() {
+    _establishDistance(rutaPuntos);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -276,7 +313,6 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
             bool isNombreValido = tempRuta.nombre.isNotEmpty;
             bool isDescripcionValida = tempRuta.descripcion.isNotEmpty;
             bool isPublic = tempRuta.state;
-            _establishDistance(rutaPuntos);
             tempRuta.distancia = totalDistance;
 
             return AlertDialog(
@@ -328,10 +364,6 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    if (!isRouteInProgress) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Debes iniciar la ruta primero')));
-                      return;
-                    }
                     if (isNombreValido && isDescripcionValida) {
                       List<String> dynamicList = rutaPuntos.map((latLng) => '${latLng.latitude}, ${latLng.longitude}').toList();
                       tempRuta.posicions = dynamicList;
