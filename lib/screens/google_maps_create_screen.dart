@@ -39,14 +39,15 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
     super.dispose();
   }
 
-    void _toggleFollowingUser() {
-  setState(() {
-    isFollowingUser = !isFollowingUser; // Cambia el estado al contrario del actual
-    if (isFollowingUser) {
-      _updateCameraToCurrentLocation(); // Si se sigue al usuario, actualiza la cámara a su ubicación actual
-    }
-  });
-}
+  void _toggleFollowingUser() {
+    setState(() {
+      isFollowingUser = !isFollowingUser;
+      if (isFollowingUser) {
+        _updateCameraToCurrentLocation();
+      }
+    });
+  }
+
   void initPlatformState() async {
     try {
       var _serviceEnabled = await location.serviceEnabled();
@@ -84,19 +85,17 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
   }
 
   void _updateCameraToCurrentLocation() {
-  if (currentLocation != null && mapController != null && isFollowingUser) {
-    mapController!.animateCamera(CameraUpdate.newLatLng(
-        LatLng(currentLocation!.latitude!, currentLocation!.longitude!)));
-    setState(() {});
+    if (currentLocation != null && mapController != null && isFollowingUser) {
+      mapController!.animateCamera(CameraUpdate.newLatLng(
+          LatLng(currentLocation!.latitude!, currentLocation!.longitude!)));
+      setState(() {});
+    }
   }
-}
 
   void _getCurrentLocation() async {
     try {
       currentLocation = await location.getLocation();
-      setState(() {
-        markerPositions[MarkerId('current')] = LatLng(currentLocation!.latitude!, currentLocation!.longitude!);
-      });
+      setState(() {});
     } catch (e) {
       print("Error getting location: $e");
     }
@@ -104,7 +103,6 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
 
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
       body: Stack(
         children: [
@@ -114,54 +112,65 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
               target: LatLng(39.725024, 2.905675),
               zoom: 14.0,
             ),
-            markers: Set<Marker>.of(markerPositions.keys.map((markerId) {
-              return Marker(
-                markerId: markerId,
-                position: markerPositions[markerId]!,
-                onTap: () => _showMarkerOptions(markerId),
-              );
-            })),
+            markers: _buildMarkers(),
             onTap: _addMarker,
-            polylines: {
-              if (rutaPuntos.isNotEmpty)
-                Polyline(
-                  polylineId: PolylineId('ruta'),
-                  color: Colors.blue,
-                  points: paintRoute,
-                ),
-            },
+            polylines: _buildPolylines(),
             myLocationEnabled: true,
-            myLocationButtonEnabled: false
-),
-        Positioned(
-          bottom: 16.0,
-          left: 16.0,
-          child: FloatingActionButton(
-            onPressed: _toggleFollowingUser, // Al hacer clic en el botón, cambia el estado de seguimiento del usuario
-            child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed), // Cambia el icono según el estado
+            myLocationButtonEnabled: false,
           ),
-        ),
-      ],
-    ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      // Añadir un botón en la parte inferior
-      bottomNavigationBar: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Container(
-          height: 60.0,
-          child: ElevatedButton(
-            onPressed: isSavingRoute ? null : _showSaveRouteDialog,
-            style: ElevatedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
-              ),
+          Positioned(
+            bottom: 16.0,
+            left: 16.0,
+            child: FloatingActionButton(
+              onPressed: _toggleFollowingUser,
+              child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
             ),
-            child: Text(
-              'Guardar Ruta',
-              style: TextStyle(
-                fontSize: 18.0,
-                fontWeight: FontWeight.bold,
-              ),
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Set<Marker> _buildMarkers() {
+    return Set<Marker>.of(markerPositions.keys.map((markerId) {
+      return Marker(
+        markerId: markerId,
+        position: markerPositions[markerId]!,
+        onTap: () => _showMarkerOptions(markerId),
+      );
+    }));
+  }
+
+  Set<Polyline> _buildPolylines() {
+    return {
+      if (rutaPuntos.isNotEmpty)
+        Polyline(
+          polylineId: PolylineId('ruta'),
+          color: Colors.blue,
+          points: paintRoute,
+        ),
+    };
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Container(
+        height: 60.0,
+        child: ElevatedButton(
+          onPressed: isSavingRoute ? null : _showSaveRouteDialog,
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+          ),
+          child: Text(
+            'Guardar Ruta',
+            style: TextStyle(
+              fontSize: 18.0,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),
@@ -202,14 +211,14 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop(); // Close the dialog
+              Navigator.of(context).pop();
             },
             child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               _removeMarker(markerId);
-              Navigator.of(context).pop(); // Close the dialog
+              Navigator.of(context).pop();
             },
             child: Text('Delete'),
           ),
@@ -248,7 +257,7 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
         throw Exception('Failed to load directions');
       }
     }
-  
+
     setState(() {
       paintRoute.clear();
       paintRoute.addAll(allRoutePoints);
@@ -257,7 +266,6 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
   }
 
   List<List<double>> _decodePolyline(String encoded) {
-    print("object");
     List<List<double>> points = [];
     int index = 0;
     int len = encoded.length;
@@ -287,6 +295,7 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
     }
     return points;
   }
+
 
  void _showSaveRouteDialog() {
   final rutaForm = Provider.of<RutasService>(context, listen: false);
@@ -368,7 +377,9 @@ showDialog(
                   tempRuta.posicions = dynamicList;
                   // Guardar o crear la ruta según corresponda
                   Provider.of<RutasService>(context, listen: false).saveOrCreateRuta();
-                  Navigator.pop(context);
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                 
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Todos los campos son obligatorios')));
                 }

@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:location/location.dart';
-import 'package:polylines_testing/provider/provider.dart';
-import 'package:provider/provider.dart';
 
 class MapScreen extends StatefulWidget {
   @override
@@ -14,8 +12,6 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  var tempRuta;
-
   GoogleMapController? mapController;
   LocationData? currentLocation;
   Location location = Location();
@@ -58,21 +54,11 @@ class _MapScreenState extends State<MapScreen> {
         setState(() {
           this.currentLocation = currentLocation;
           _updateCameraToCurrentLocation();
-          print(currentLocation);
-          print(tempRuta.posicions[0]);
         });
       });
 
       currentLocation = await location.getLocation();
       _updateCameraToCurrentLocation();
-      
-      // Construir rutaPuntos con los datos de tempUser.posicions
-      for (String position in tempRuta.posicions) {
-        List<String> components = position.split(','); // Dividir la cadena en sus componentes
-        double lat = double.parse(components[0].trim()); // Obtener la latitud
-        double lng = double.parse(components[1].trim()); // Obtener la longitud
-        rutaPuntos.add(LatLng(lat, lng)); // Agregar el objeto LatLng a la lista
-      }
 
       // Llamar a la función para pintar la ruta
       await _fetchAndSetPolyline();
@@ -80,7 +66,7 @@ class _MapScreenState extends State<MapScreen> {
       print(e);
     }
   }
-  
+
   void _toggleFollowingUser() {
     setState(() {
       isFollowingUser = !isFollowingUser;
@@ -99,16 +85,11 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rutaForm = Provider.of<RutasService>(context, listen: false);
-    tempRuta = rutaForm.tempRuta;
-
     return Scaffold(
       body: Stack(
         children: [
           GoogleMap(
-            onMapCreated: (controller) {
-              mapController = controller;
-            },
+            onMapCreated: _onMapCreated,
             markers: Set<Marker>.of(markers.values),
             initialCameraPosition: CameraPosition(
               target: LatLng(39.725024, 2.905675), // Centro del primer punto de ruta
@@ -132,9 +113,23 @@ class _MapScreenState extends State<MapScreen> {
               child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
             ),
           ),
+          Positioned(
+            bottom: 16.0,
+            right: 16.0,
+            child: ElevatedButton(
+              onPressed: _finishRoute,
+              child: Text('Finalizar Ruta'),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    setState(() {
+      mapController = controller;
+    });
   }
 
   Future<void> _fetchAndSetPolyline() async {
@@ -204,4 +199,31 @@ class _MapScreenState extends State<MapScreen> {
     }
     return points;
   }
+
+  void _finishRoute() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('¿Has finalizado la ruta?'),
+        content: Text('¿Estás seguro de que deseas finalizar la ruta?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Aquí puedes realizar cualquier acción necesaria cuando el usuario finaliza la ruta
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Volver a la página principal (cerrar el diálogo y la página del mapa)
+            },
+            child: Text('Sí'),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

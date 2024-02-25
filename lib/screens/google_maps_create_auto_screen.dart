@@ -40,43 +40,31 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
     super.dispose();
   }
 
-  void _toggleFollowingUser() {
-  setState(() {
-    isFollowingUser = !isFollowingUser; // Cambia el estado al contrario del actual
-    if (isFollowingUser) {
-      _updateCameraToCurrentLocation(); // Si se sigue al usuario, actualiza la cámara a su ubicación actual
-    }
-  });
-}
   void initPlatformState() async {
     try {
-      var _serviceEnabled = await location.serviceEnabled();
-      if (!_serviceEnabled) {
-        _serviceEnabled = await location.requestService();
-        if (!_serviceEnabled) {
-          return;
-        }
+      bool serviceEnabled = await location.serviceEnabled();
+      if (!serviceEnabled) {
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) return;
       }
 
-      var _permissionGranted = await location.hasPermission();
-      if (_permissionGranted == PermissionStatus.denied) {
-        _permissionGranted = await location.requestPermission();
-        if (_permissionGranted != PermissionStatus.granted) {
-          return;
-        }
+      PermissionStatus permissionGranted = await location.hasPermission();
+      if (permissionGranted == PermissionStatus.denied) {
+        permissionGranted = await location.requestPermission();
+        if (permissionGranted != PermissionStatus.granted) return;
       }
 
       locationSubscription = location.onLocationChanged.listen((LocationData currentLocation) {
         setState(() {
           this.currentLocation = currentLocation;
-          if (shouldCenterOnUser) {
+          if (shouldCenterOnUser && isFollowingUser) {
             _updateCameraToCurrentLocation();
           }
         });
       });
 
       currentLocation = await location.getLocation();
-      if (shouldCenterOnUser) {
+      if (shouldCenterOnUser && isFollowingUser) {
         _updateCameraToCurrentLocation();
       }
     } catch (e) {
@@ -85,46 +73,46 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
   }
 
   void _updateCameraToCurrentLocation() {
-  if (currentLocation != null && mapController != null && isFollowingUser) {
-    mapController!.animateCamera(CameraUpdate.newLatLng(
-        LatLng(currentLocation!.latitude!, currentLocation!.longitude!)));
-    setState(() {});
+    if (currentLocation != null && mapController != null) {
+      mapController!.animateCamera(CameraUpdate.newLatLng(
+        LatLng(currentLocation!.latitude!, currentLocation!.longitude!),
+      ));
+    }
   }
-}
 
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    body: Stack(
-      children: [
-        GoogleMap(
-  onMapCreated: _onMapCreated,
-  initialCameraPosition: CameraPosition(
-    target: LatLng(currentLocation?.latitude ?? 39.725024, currentLocation?.longitude ?? 2.905675),
-    zoom: 14.0,
-  ),
-  markers: Set<Marker>.of(markers.values),
-  polylines: {
-    if (rutaPuntos.isNotEmpty)
-      Polyline(
-        polylineId: PolylineId('ruta'),
-        color: Colors.blue,
-        points: paintRoute,
-      ),
-  },
-  myLocationEnabled: true,
-  myLocationButtonEnabled: false,
-),
-        Positioned(
-          bottom: 16.0,
-          left: 16.0,
-          child: FloatingActionButton(
-            onPressed: _toggleFollowingUser, // Al hacer clic en el botón, cambia el estado de seguimiento del usuario
-            child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed), // Cambia el icono según el estado
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          GoogleMap(
+            onMapCreated: _onMapCreated,
+            initialCameraPosition: CameraPosition(
+              target: LatLng(currentLocation?.latitude ?? 39.725024, currentLocation?.longitude ?? 2.905675),
+              zoom: 14.0,
+            ),
+            markers: Set<Marker>.of(markers.values),
+            polylines: {
+              if (rutaPuntos.isNotEmpty)
+                Polyline(
+                  polylineId: PolylineId('ruta'),
+                  color: Colors.blue,
+                  points: paintRoute,
+                ),
+            },
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
           ),
-        ),
-      ],
-    ),
+          Positioned(
+            bottom: 16.0,
+            left: 16.0,
+            child: FloatingActionButton(
+              onPressed: _toggleFollowingUser,
+              child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
+            ),
+          ),
+        ],
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: Padding(
         padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -178,6 +166,15 @@ Widget build(BuildContext context) {
     });
   }
 
+  void _toggleFollowingUser() {
+    setState(() {
+      isFollowingUser = !isFollowingUser;
+      if (isFollowingUser) {
+        _updateCameraToCurrentLocation();
+      }
+    });
+  }
+
   void _toggleRouteProgress() {
     setState(() {
       isRouteInProgress = !isRouteInProgress;
@@ -197,8 +194,8 @@ Widget build(BuildContext context) {
       currentLocation = await location.getLocation();
       setState(() {
         rutaPuntos.add(
-            LatLng(currentLocation!.latitude!, currentLocation!.longitude!));
-        print(rutaPuntos);
+          LatLng(currentLocation!.latitude!, currentLocation!.longitude!),
+        );
         _fetchAndSetPolyline(rutaPuntos);
       });
     } catch (e) {
@@ -208,12 +205,11 @@ Widget build(BuildContext context) {
 
   Future<void> _fetchAndSetPolyline(List<LatLng> points) async {
     List<LatLng> allRoutePoints = [];
-    double segmentDistance = 0;
     isSavingRoute = true;
     for (int i = 0; i < points.length - 1; i++) {
       final directionsResponse = await http.get(
         Uri.parse(
-          'https://maps.googleapis.com/maps/api/directions/json?origin=${points[i].latitude},${points[i].longitude}&destination=${points[i + 1].latitude},${points[i + 1].longitude}&mode=walking&units=metric&key=AIzaSyCUDmn8tybGJqitGdBTpS6R4FN7V56JxCE',
+          'https://maps.googleapis.com/maps/api/directions/json?origin=${points[i].latitude},${points[i].longitude}&destination=${points[i + 1].latitude},${points[i + 1].longitude}&mode=walking&units=metric&key=YOUR_API_KEY',
         ),
       );
 
@@ -230,22 +226,12 @@ Widget build(BuildContext context) {
         throw Exception('Failed to load directions');
       }
     }
-    
-    
+
     setState(() {
       isSavingRoute = false;
-      markers['start'] = Marker(
-        markerId: MarkerId('start'),
-        position: rutaPuntos.first,
-      );
-      markers['end'] = Marker(
-        markerId: MarkerId('end'),
-        position: rutaPuntos.last,
-      );
       paintRoute.clear();
       paintRoute.addAll(allRoutePoints);
     });
-    
   }
 
   List<List<double>> _decodePolyline(String encoded) {
@@ -289,11 +275,9 @@ Widget build(BuildContext context) {
             final tempRuta = Provider.of<RutasService>(context, listen: false).tempRuta;
             bool isNombreValido = tempRuta.nombre.isNotEmpty;
             bool isDescripcionValida = tempRuta.descripcion.isNotEmpty;
-            bool isKilometrosValidos = tempRuta.distancia != null;
             bool isPublic = tempRuta.state;
-            _establishDistance(rutaPuntos);          
-          print("Distnacia total ${totalDistance}");
-          tempRuta.distancia = totalDistance;
+            _establishDistance(rutaPuntos);
+            tempRuta.distancia = totalDistance;
 
             return AlertDialog(
               title: Text('Guardar Ruta'),
@@ -353,6 +337,7 @@ Widget build(BuildContext context) {
                       tempRuta.posicions = dynamicList;
                       Provider.of<RutasService>(context, listen: false).saveOrCreateRuta();
                       Navigator.of(context).pop();
+                      Navigator.of(context).pop();
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Todos los campos son obligatorios')));
                     }
@@ -368,7 +353,6 @@ Widget build(BuildContext context) {
   }
 
   Future<void> _establishDistance(List<LatLng> points) async {
-    isSavingRoute = true;
     double segmentDistance = 0;
     for (int i = 0; i < points.length - 1; i++) {
       final directionsResponse = await http.get(
@@ -384,16 +368,12 @@ Widget build(BuildContext context) {
           if (legs != null && legs.isNotEmpty) {
             final int distance = legs[0]['distance']['value'];
             segmentDistance += distance.toDouble();
-            print("Distance: $distance");
-            print("Segment Distance: $segmentDistance");
           }
         }
       } else {
         throw Exception('Failed to load directions');
       }
     }
-    print("Segment Distance2: $segmentDistance");
     totalDistance = segmentDistance;
-    print("Total Distance: $totalDistance");
   }
 }
