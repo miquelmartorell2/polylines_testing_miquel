@@ -6,8 +6,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:location/location.dart';
 import 'package:polylines_testing/provider/provider.dart';
-import 'package:polylines_testing/screens/home_screen.dart';
-import 'package:polylines_testing/widgets/home_controller.dart';
 import 'package:provider/provider.dart';
 
 class MapScreen extends StatefulWidget {
@@ -18,14 +16,13 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   var tempRuta;
 
-  final _controller = HomeController();
-  
   GoogleMapController? mapController;
   LocationData? currentLocation;
   Location location = Location();
   StreamSubscription<LocationData>? locationSubscription;
   List<LatLng> rutaPuntos = [];
   Map<String, Marker> markers = {};
+  bool isFollowingUser = false;
 
   @override
   void initState() {
@@ -83,9 +80,18 @@ class _MapScreenState extends State<MapScreen> {
       print(e);
     }
   }
+  
+  void _toggleFollowingUser() {
+    setState(() {
+      isFollowingUser = !isFollowingUser;
+      if (isFollowingUser) {
+        _updateCameraToCurrentLocation();
+      }
+    });
+  }
 
   void _updateCameraToCurrentLocation() {
-    if (currentLocation != null && mapController != null) {
+    if (currentLocation != null && mapController != null && isFollowingUser) {
       mapController!.animateCamera(CameraUpdate.newLatLng(
           LatLng(currentLocation!.latitude!, currentLocation!.longitude!)));
     }
@@ -97,20 +103,36 @@ class _MapScreenState extends State<MapScreen> {
     tempRuta = rutaForm.tempRuta;
 
     return Scaffold(
-      body: GoogleMap(
-        onMapCreated: _controller.onMapCreated,
-        markers: Set<Marker>.of(markers.values),
-        initialCameraPosition: CameraPosition(
-          target: LatLng(39.725024, 2.905675), // Centro del primer punto de ruta
-          zoom: 14.0, // Ajusta el zoom según sea necesario
-        ),
-        polylines: {
-          Polyline(
-            polylineId: PolylineId('ruta'),
-            color: Colors.blue,
-            points: rutaPuntos,
+      body: Stack(
+        children: [
+          GoogleMap(
+            onMapCreated: (controller) {
+              mapController = controller;
+            },
+            markers: Set<Marker>.of(markers.values),
+            initialCameraPosition: CameraPosition(
+              target: LatLng(39.725024, 2.905675), // Centro del primer punto de ruta
+              zoom: 17.0, // Ajusta el zoom según sea necesario
+            ),
+            polylines: {
+              Polyline(
+                polylineId: PolylineId('ruta'),
+                color: Colors.blue,
+                points: rutaPuntos,
+              ),
+            },
+            myLocationEnabled: true, // Mostrar el círculo de la ubicación actual
+            myLocationButtonEnabled: false, // Deshabilita el botón de ubicación actual de Google Maps
           ),
-        },
+          Positioned(
+            bottom: 16.0,
+            left: 16.0,
+            child: FloatingActionButton(
+              onPressed: _toggleFollowingUser,
+              child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -146,11 +168,6 @@ class _MapScreenState extends State<MapScreen> {
       markers['end'] = Marker(
         markerId: MarkerId('end'),
         position: rutaPuntos.last,
-      );
-      markers['current'] = Marker(
-        markerId: MarkerId('current'),
-        position: LatLng(currentLocation!.latitude!, currentLocation!.longitude!),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue), // Icono representativo
       );
       rutaPuntos.clear();
       rutaPuntos.addAll(allRoutePoints);

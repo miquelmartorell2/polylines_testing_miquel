@@ -18,16 +18,78 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
   LocationData? currentLocation;
   Location location = Location();
   Map<MarkerId, LatLng> markerPositions = {};
+  StreamSubscription<LocationData>? locationSubscription;
   List<LatLng> rutaPuntos = [];
   List<LatLng> paintRoute = [];
   bool isSavingRoute = false;
   double totalDistance = 0;
+  bool shouldCenterOnUser = true;
+  bool isFollowingUser = true;
 
   @override
   void initState() {
     super.initState();
+    initPlatformState();
     _getCurrentLocation();
   }
+
+  @override
+  void dispose() {
+    locationSubscription?.cancel();
+    super.dispose();
+  }
+
+    void _toggleFollowingUser() {
+  setState(() {
+    isFollowingUser = !isFollowingUser; // Cambia el estado al contrario del actual
+    if (isFollowingUser) {
+      _updateCameraToCurrentLocation(); // Si se sigue al usuario, actualiza la cámara a su ubicación actual
+    }
+  });
+}
+  void initPlatformState() async {
+    try {
+      var _serviceEnabled = await location.serviceEnabled();
+      if (!_serviceEnabled) {
+        _serviceEnabled = await location.requestService();
+        if (!_serviceEnabled) {
+          return;
+        }
+      }
+
+      var _permissionGranted = await location.hasPermission();
+      if (_permissionGranted == PermissionStatus.denied) {
+        _permissionGranted = await location.requestPermission();
+        if (_permissionGranted != PermissionStatus.granted) {
+          return;
+        }
+      }
+
+      locationSubscription = location.onLocationChanged.listen((LocationData currentLocation) {
+        setState(() {
+          this.currentLocation = currentLocation;
+          if (shouldCenterOnUser) {
+            _updateCameraToCurrentLocation();
+          }
+        });
+      });
+
+      currentLocation = await location.getLocation();
+      if (shouldCenterOnUser) {
+        _updateCameraToCurrentLocation();
+      }
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  void _updateCameraToCurrentLocation() {
+  if (currentLocation != null && mapController != null && isFollowingUser) {
+    mapController!.animateCamera(CameraUpdate.newLatLng(
+        LatLng(currentLocation!.latitude!, currentLocation!.longitude!)));
+    setState(() {});
+  }
+}
 
   void _getCurrentLocation() async {
     try {
@@ -68,19 +130,19 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
                   points: paintRoute,
                 ),
             },
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false
+),
+        Positioned(
+          bottom: 16.0,
+          left: 16.0,
+          child: FloatingActionButton(
+            onPressed: _toggleFollowingUser, // Al hacer clic en el botón, cambia el estado de seguimiento del usuario
+            child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed), // Cambia el icono según el estado
           ),
-          Positioned(
-            bottom: 16.0,
-            left: 16.0,
-            child: FloatingActionButton(
-              onPressed: () {
-                _fetchAndSetPolyline(rutaPuntos);
-              },
-              child: Icon(Icons.directions),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
+    ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       // Añadir un botón en la parte inferior
       bottomNavigationBar: Padding(
@@ -167,7 +229,6 @@ class _MapScreenCreateState extends State<MapScreenCreate> {
   Future<void> _fetchAndSetPolyline(List<LatLng> points) async {
     List<LatLng> allRoutePoints = [];
     isSavingRoute = true;
-    double segmentDistance = 0;
     for (int i = 0; i < points.length - 1; i++) {
       final directionsResponse = await http.get(
         Uri.parse(
@@ -307,7 +368,7 @@ showDialog(
                   tempRuta.posicions = dynamicList;
                   // Guardar o crear la ruta según corresponda
                   Provider.of<RutasService>(context, listen: false).saveOrCreateRuta();
-                  Navigator.of(context).pop();
+                  Navigator.pop(context);
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Todos los campos son obligatorios')));
                 }

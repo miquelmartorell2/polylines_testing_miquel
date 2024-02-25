@@ -19,12 +19,14 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
   Location location = Location();
   Map<String, Marker> markers = {};
   List<LatLng> rutaPuntos = [];
-  List<LatLng> paintRoute= [];
+  List<LatLng> paintRoute = [];
   StreamSubscription<LocationData>? locationSubscription;
   Timer? timer;
   bool isRouteInProgress = false;
   double totalDistance = 0;
-  bool isSavingRoute = false; // Variable para controlar el estado del botón
+  bool isSavingRoute = false;
+  bool shouldCenterOnUser = true;
+  bool isFollowingUser = true;
 
   @override
   void initState() {
@@ -38,18 +40,14 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
     super.dispose();
   }
 
-  void _getCurrentLocation() async {
-    try {
-      currentLocation = await location.getLocation();
-      setState(() {
-        //markers[MarkerId('current')] =
-        //    LatLng(currentLocation!.latitude!, currentLocation!.longitude!);
-      });
-    } catch (e) {
-      print("Error getting location: $e");
+  void _toggleFollowingUser() {
+  setState(() {
+    isFollowingUser = !isFollowingUser; // Cambia el estado al contrario del actual
+    if (isFollowingUser) {
+      _updateCameraToCurrentLocation(); // Si se sigue al usuario, actualiza la cámara a su ubicación actual
     }
-  }
-
+  });
+}
   void initPlatformState() async {
     try {
       var _serviceEnabled = await location.serviceEnabled();
@@ -71,83 +69,62 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
       locationSubscription = location.onLocationChanged.listen((LocationData currentLocation) {
         setState(() {
           this.currentLocation = currentLocation;
-          _updateCameraToCurrentLocation();
-          print(currentLocation);
+          if (shouldCenterOnUser) {
+            _updateCameraToCurrentLocation();
+          }
         });
       });
 
       currentLocation = await location.getLocation();
-      _updateCameraToCurrentLocation();
+      if (shouldCenterOnUser) {
+        _updateCameraToCurrentLocation();
+      }
     } catch (e) {
       print(e);
     }
   }
 
   void _updateCameraToCurrentLocation() {
-    if (currentLocation != null && mapController != null) {
-      mapController!.animateCamera(CameraUpdate.newLatLng(
-          LatLng(currentLocation!.latitude!, currentLocation!.longitude!)));
-      setState(() {
-        markers['current'] = Marker(
-        markerId: MarkerId('current'),
-        position: LatLng(currentLocation!.latitude!, currentLocation!.longitude!),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue), // Icono representativo
-      );
-      });
-    }
+  if (currentLocation != null && mapController != null && isFollowingUser) {
+    mapController!.animateCamera(CameraUpdate.newLatLng(
+        LatLng(currentLocation!.latitude!, currentLocation!.longitude!)));
+    setState(() {});
   }
+}
 
-  void _toggleRouteProgress() {
-    setState(() {
-      isRouteInProgress = !isRouteInProgress;
-      if (isRouteInProgress) {
-        timer = Timer.periodic(Duration(seconds: 15), (timer) {
-          _saveCurrentPosition();
-        });
-      } else {
-        timer?.cancel();
-      }
-    });
-  }
-
-  void _saveCurrentPosition() async {
-    if (!isRouteInProgress) return;
-    try {
-      currentLocation = await location.getLocation();
-      setState(() {
-        rutaPuntos.add(
-            LatLng(currentLocation!.latitude!, currentLocation!.longitude!));
-        print(rutaPuntos);
-        _fetchAndSetPolyline(rutaPuntos);
-      });
-    } catch (e) {
-      print("Error saving location: $e");
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          GoogleMap(
-            onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(
-              target: LatLng(39.725024, 2.905675),
-              zoom: 14.0,
-            ),
-            markers: Set<Marker>.of(markers.values),
-            polylines: {
-              if (rutaPuntos.isNotEmpty)
-                Polyline(
-                  polylineId: PolylineId('ruta'),
-                  color: Colors.blue,
-                  points: paintRoute,
-                ),
-            },
-          ),
-        ],
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: Stack(
+      children: [
+        GoogleMap(
+  onMapCreated: _onMapCreated,
+  initialCameraPosition: CameraPosition(
+    target: LatLng(currentLocation?.latitude ?? 39.725024, currentLocation?.longitude ?? 2.905675),
+    zoom: 14.0,
+  ),
+  markers: Set<Marker>.of(markers.values),
+  polylines: {
+    if (rutaPuntos.isNotEmpty)
+      Polyline(
+        polylineId: PolylineId('ruta'),
+        color: Colors.blue,
+        points: paintRoute,
       ),
+  },
+  myLocationEnabled: true,
+  myLocationButtonEnabled: false,
+),
+        Positioned(
+          bottom: 16.0,
+          left: 16.0,
+          child: FloatingActionButton(
+            onPressed: _toggleFollowingUser, // Al hacer clic en el botón, cambia el estado de seguimiento del usuario
+            child: Icon(isFollowingUser ? Icons.gps_fixed : Icons.gps_not_fixed), // Cambia el icono según el estado
+          ),
+        ),
+      ],
+    ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: Padding(
         padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -201,35 +178,32 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
     });
   }
 
-  void _showMarkerOptions(MarkerId markerId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Marker Options'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            //Text('Latitude: ${markers[markerId]?.latitude}'),
-            //Text('Longitude: ${markerPositions[markerId]?.longitude}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text('Delete'),
-          ),
-        ],
-      ),
-    );
+  void _toggleRouteProgress() {
+    setState(() {
+      isRouteInProgress = !isRouteInProgress;
+      if (isRouteInProgress) {
+        timer = Timer.periodic(Duration(seconds: 15), (timer) {
+          _saveCurrentPosition();
+        });
+      } else {
+        timer?.cancel();
+      }
+    });
+  }
+
+  void _saveCurrentPosition() async {
+    if (!isRouteInProgress) return;
+    try {
+      currentLocation = await location.getLocation();
+      setState(() {
+        rutaPuntos.add(
+            LatLng(currentLocation!.latitude!, currentLocation!.longitude!));
+        print(rutaPuntos);
+        _fetchAndSetPolyline(rutaPuntos);
+      });
+    } catch (e) {
+      print("Error saving location: $e");
+    }
   }
 
   Future<void> _fetchAndSetPolyline(List<LatLng> points) async {
