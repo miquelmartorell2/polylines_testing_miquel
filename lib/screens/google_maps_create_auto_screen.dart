@@ -239,7 +239,7 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
     for (int i = 0; i < points.length - 1; i++) {
       final directionsResponse = await http.get(
         Uri.parse(
-          'https://maps.googleapis.com/maps/api/directions/json?origin=${points[i].latitude},${points[i].longitude}&destination=${points[i + 1].latitude},${points[i + 1].longitude}&mode=walking&key=AIzaSyCUDmn8tybGJqitGdBTpS6R4FN7V56JxCE',
+          'https://maps.googleapis.com/maps/api/directions/json?origin=${points[i].latitude},${points[i].longitude}&destination=${points[i + 1].latitude},${points[i + 1].longitude}&mode=walking&units=metric&key=AIzaSyCUDmn8tybGJqitGdBTpS6R4FN7V56JxCE',
         ),
       );
 
@@ -248,14 +248,6 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
         final routes = decodedResponse['routes'];
 
         if (routes != null && routes.isNotEmpty) {
-          final legs = routes[0]['legs'];
-          if (legs != null && legs.isNotEmpty) {
-            final int distance = legs[0]['distance']['value'];
-            segmentDistance = distance.toDouble();
-            print("Distance: $distance");
-            print("Segment Distance: $segmentDistance");
-          }
-
           final points = _decodePolyline(routes[0]['overview_polyline']['points']);
           List<LatLng> routeCoords = points.map((point) => LatLng(point[0], point[1])).toList();
           allRoutePoints.addAll(routeCoords);
@@ -264,9 +256,7 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
         throw Exception('Failed to load directions');
       }
     }
-    print("Segment Distance2: $segmentDistance");
-    totalDistance += segmentDistance;
-    print("Total Distance: $totalDistance");
+    
     
     setState(() {
       isSavingRoute = false;
@@ -327,6 +317,9 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
             bool isDescripcionValida = tempRuta.descripcion.isNotEmpty;
             bool isKilometrosValidos = tempRuta.distancia != null;
             bool isPublic = tempRuta.state;
+            _establishDistance(rutaPuntos);          
+          print("Distnacia total ${totalDistance}");
+          tempRuta.distancia = totalDistance;
 
             return AlertDialog(
               title: Text('Guardar Ruta'),
@@ -348,15 +341,6 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
                       setState(() {
                         isDescripcionValida = value.isNotEmpty;
                         tempRuta.descripcion = value;
-                      });
-                    },
-                  ),
-                  TextField(
-                    decoration: InputDecoration(labelText: 'Kilometros'),
-                    onChanged: (value) {
-                      setState(() {
-                        isKilometrosValidos = value.isNotEmpty && double.tryParse(value) != null;
-                        tempRuta.distancia = totalDistance;
                       });
                     },
                   ),
@@ -390,7 +374,7 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Debes iniciar la ruta primero')));
                       return;
                     }
-                    if (isNombreValido && isDescripcionValida && isKilometrosValidos) {
+                    if (isNombreValido && isDescripcionValida) {
                       List<String> dynamicList = rutaPuntos.map((latLng) => '${latLng.latitude}, ${latLng.longitude}').toList();
                       tempRuta.posicions = dynamicList;
                       Provider.of<RutasService>(context, listen: false).saveOrCreateRuta();
@@ -407,5 +391,35 @@ class _MapScreenCreateStateAuto extends State<MapScreenCreateAuto> {
         );
       },
     );
+  }
+
+  Future<void> _establishDistance(List<LatLng> points) async {
+    isSavingRoute = true;
+    double segmentDistance = 0;
+    for (int i = 0; i < points.length - 1; i++) {
+      final directionsResponse = await http.get(
+        Uri.parse(
+          'https://maps.googleapis.com/maps/api/directions/json?origin=${points[i].latitude},${points[i].longitude}&destination=${points[i + 1].latitude},${points[i + 1].longitude}&mode=walking&units=metric&key=AIzaSyCUDmn8tybGJqitGdBTpS6R4FN7V56JxCE',
+        ),
+      );
+      if (directionsResponse.statusCode == 200) {
+        final decodedResponse = json.decode(directionsResponse.body);
+        final routes = decodedResponse['routes'];
+        if (routes != null && routes.isNotEmpty) {
+          final legs = routes[0]['legs'];
+          if (legs != null && legs.isNotEmpty) {
+            final int distance = legs[0]['distance']['value'];
+            segmentDistance += distance.toDouble();
+            print("Distance: $distance");
+            print("Segment Distance: $segmentDistance");
+          }
+        }
+      } else {
+        throw Exception('Failed to load directions');
+      }
+    }
+    print("Segment Distance2: $segmentDistance");
+    totalDistance = segmentDistance;
+    print("Total Distance: $totalDistance");
   }
 }
